@@ -1,46 +1,91 @@
+import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Send } from 'lucide-react';
-import { useState } from 'react';
+import { sendChatRequest, type Message } from '../lib/api';
 
 interface ChatInputProps {
-  onSendMessage: (message: string) => void;
+  onUserMessage: (message: Message) => void;
+  onAIResponse: (content: string) => void;
 }
 
-export function ChatInput({ onSendMessage }: ChatInputProps) {
+export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    onSendMessage(message);
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [message]);
+
+  const handleSubmit = async () => {
+    if (!message.trim() || isLoading) return;
+
+    const userMessage = message.trim();
     setMessage('');
+    setIsLoading(true);
+
+    // Add user message to the conversation
+    const userMessageObj: Message = { role: 'user', content: userMessage };
+    onUserMessage(userMessageObj);
+
+    try {
+      const stream = await sendChatRequest({
+        messages: [userMessageObj],
+      });
+
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedResponse = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedResponse += chunk;
+        onAIResponse(accumulatedResponse);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      onAIResponse('Sorry, there was an error processing your request. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
-      <div className="relative flex w-full items-center">
+    <div className="flex flex-col gap-2 border-b p-4">
+      <div className="relative">
         <textarea
+          ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type a message..."
-          className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[60px] w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          rows={1}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e);
-            }
-          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Type your message..."
+          className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring max-h-[120px] min-h-[40px] w-full resize-none rounded-md border py-1.5 pr-12 pl-3 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={isLoading}
         />
         <Button
-          type="submit"
+          onClick={handleSubmit}
+          disabled={isLoading || !message.trim()}
           size="icon"
-          className="absolute top-1/2 right-2 -translate-y-1/2"
-          disabled={!message.trim()}
+          className="absolute top-1/2 right-2 h-8 w-8 -translate-y-1/2"
         >
-          <Send className="h-4 w-4" />
+          {isLoading ? '⌛' : '📤'}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

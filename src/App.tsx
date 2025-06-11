@@ -2,17 +2,11 @@ import { useState } from 'react';
 import { ChatInput } from './components/ChatInput';
 import { ConversationPanel } from './components/ConversationPanel';
 import { CodeEditor } from './components/CodeEditor';
-import { OutputPanel } from './components/OutputPanel';
 import { Sidebar } from './components/Sidebar';
-
-type Message = {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-};
+import { OutputPanel } from './components/OutputPanel';
+import { type Message } from './lib/api';
 
 type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'csharp';
-
 type Version = 'v1' | 'v2' | 'v3';
 
 function App() {
@@ -20,24 +14,22 @@ function App() {
   const [code, setCode] = useState('// Write your code here\n');
   const [output, setOutput] = useState('');
   const [language, setLanguage] = useState<Language>('typescript');
-  const [generatedCode, setGeneratedCode] = useState('');
   const [version, setVersion] = useState<Version>('v1');
 
-  const handleSendMessage = (content: string) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      role: 'user',
-    };
-    setMessages((prev) => [...prev, newMessage]);
+  const handleUserMessage = (message: Message) => {
+    setMessages((prev) => [...prev, message]);
+  };
 
-    // TODO: Add AI response logic here
-    const aiResponse: Message = {
-      id: (Date.now() + 1).toString(),
-      content: 'This is a placeholder response from the AI.',
-      role: 'assistant',
-    };
-    setMessages((prev) => [...prev, aiResponse]);
+  const handleAIResponse = (content: string) => {
+    // If there's already an assistant message, update it
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1];
+      if (lastMessage?.role === 'assistant') {
+        return [...prev.slice(0, -1), { role: 'assistant', content }];
+      }
+      // Otherwise, add a new assistant message
+      return [...prev, { role: 'assistant', content }];
+    });
   };
 
   const handleRunTests = () => {
@@ -80,15 +72,15 @@ function App() {
             <div className="grid h-[calc(100vh-120px)] grid-cols-2 gap-4">
               <div className="flex h-full flex-col">
                 <div className="mb-4">
-                  <ChatInput onSendMessage={handleSendMessage} />
+                  <ChatInput onUserMessage={handleUserMessage} onAIResponse={handleAIResponse} />
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <ConversationPanel
                     messages={messages}
-                    onSendMessage={handleSendMessage}
                     version={version}
                     onVersionChange={handleVersionChange}
                     language={language}
+                    onSendMessage={(content) => handleUserMessage({ role: 'user', content })}
                   />
                 </div>
               </div>

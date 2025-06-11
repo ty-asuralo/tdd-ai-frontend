@@ -2,13 +2,8 @@ import { Editor } from '@monaco-editor/react';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { useState } from 'react';
-
-type Message = {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-};
+import { useState, useRef, useEffect } from 'react';
+import { type Message } from '../lib/api';
 
 type Version = 'v1' | 'v2' | 'v3';
 type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'csharp';
@@ -29,22 +24,31 @@ export function ConversationPanel({
   language,
 }: ConversationPanelProps) {
   const [activeTab, setActiveTab] = useState('conversation');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
-    <div className="bg-card flex h-full flex-col rounded-lg border">
+    <div className="bg-card h-full rounded-lg border">
       <Tabs
         defaultValue="conversation"
         className="flex h-full flex-col"
         onValueChange={setActiveTab}
       >
-        <div className="border-b px-4">
+        <div className="flex-none border-b px-4">
           <TabsList>
             <TabsTrigger value="conversation">Conversation</TabsTrigger>
             <TabsTrigger value="generated-code">Generated Code</TabsTrigger>
           </TabsList>
         </div>
         {activeTab === 'generated-code' && (
-          <div className="border-b p-2">
+          <div className="flex-none border-b p-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Select value={version} onValueChange={onVersionChange}>
@@ -65,22 +69,25 @@ export function ConversationPanel({
             </div>
           </div>
         )}
-        <TabsContent value="conversation" className="flex-1 overflow-auto p-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+        <TabsContent value="conversation" className="relative flex-1">
+          <div className="absolute inset-0 overflow-y-auto">
+            <div className="space-y-4 p-4">
+              {messages.map((message, index) => (
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                    message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                  }`}
+                  key={index}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {message.content}
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    }`}
+                  >
+                    {message.content}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         </TabsContent>
         <TabsContent value="generated-code" className="flex-1">
