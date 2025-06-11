@@ -7,6 +7,45 @@ interface ChatInputProps {
   onAIResponse: (content: string) => void;
 }
 
+interface StartChunk {
+  type: 'start';
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface TokenChunk {
+  type: 'token';
+  token: string;
+  role: 'assistant';
+  index: number;
+  language?: string;
+  is_code: boolean;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface ErrorChunk {
+  type: 'error';
+  error: string;
+  code: string;
+}
+
+interface DoneChunk {
+  type: 'done';
+  finish_reason: 'stop' | 'length' | 'function_call' | 'user_abort';
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
 export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,8 +86,37 @@ export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
         }
 
         const chunk = decoder.decode(value, { stream: true });
-        accumulatedResponse += chunk;
-        onAIResponse(accumulatedResponse);
+        // Split by newlines in case multiple JSON objects are received
+        const lines = chunk.split('\n').filter((line) => line.trim());
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+
+            if (data.type === 'start') {
+              const startChunk = data as StartChunk;
+              // Could use startChunk.usage for initial token count if needed
+              console.log('Stream started with usage:', startChunk.usage);
+            } else if (data.type === 'token') {
+              const tokenChunk = data as TokenChunk;
+              accumulatedResponse += tokenChunk.token;
+              onAIResponse(accumulatedResponse);
+            } else if (data.type === 'done') {
+              const doneChunk = data as DoneChunk;
+              if (doneChunk.finish_reason !== 'stop') {
+                console.warn('Stream ended with reason:', doneChunk.finish_reason);
+              }
+              console.log('Stream completed with usage:', doneChunk.usage);
+            } else if (data.type === 'error') {
+              const errorChunk = data as ErrorChunk;
+              console.error('Stream error:', errorChunk.error, 'Code:', errorChunk.code);
+              onAIResponse(`Error: ${errorChunk.error}`);
+              break; // Stop processing on error
+            }
+          } catch (e) {
+            console.error('Error parsing chunk:', e);
+          }
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
