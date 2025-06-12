@@ -14,6 +14,7 @@ interface ConversationPanelProps {
   version: Version;
   onVersionChange: (version: Version) => void;
   language: Language;
+  generatedCode: string;
 }
 
 export function ConversationPanel({
@@ -22,9 +23,18 @@ export function ConversationPanel({
   version,
   onVersionChange,
   language,
+  generatedCode,
 }: ConversationPanelProps) {
   const [activeTab, setActiveTab] = useState('conversation');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    console.log('ConversationPanel received new generated code:', {
+      generatedCode,
+      version,
+      language,
+    });
+  }, [generatedCode, version, language]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,6 +106,7 @@ export function ConversationPanel({
             defaultLanguage={language}
             language={language}
             theme="vs-dark"
+            value={generatedCode}
             options={{
               minimap: { enabled: false },
               fontSize: 14,
@@ -103,6 +114,7 @@ export function ConversationPanel({
               roundedSelection: false,
               scrollBeyondLastLine: false,
               automaticLayout: true,
+              readOnly: true,
             }}
           />
         </TabsContent>

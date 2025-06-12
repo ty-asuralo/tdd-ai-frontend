@@ -5,6 +5,7 @@ import { sendChatRequest, type Message } from '../lib/api';
 interface ChatInputProps {
   onUserMessage: (message: Message) => void;
   onAIResponse: (content: string) => void;
+  onCodeBlock: (code: string, language: string) => void;
 }
 
 interface StartChunk {
@@ -21,8 +22,25 @@ interface TokenChunk {
   token: string;
   role: 'assistant';
   index: number;
-  language?: string;
-  is_code: boolean;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface CodeStartChunk {
+  type: 'code_start';
+  language: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface CodeEndChunk {
+  type: 'code_end';
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -46,10 +64,13 @@ interface DoneChunk {
   };
 }
 
-export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
+type Chunk = StartChunk | TokenChunk | CodeStartChunk | CodeEndChunk | ErrorChunk | DoneChunk;
+
+export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const currentCodeBlockRef = useRef('');
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -57,6 +78,92 @@ export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
+
+  const handleStartChunk = (chunk: StartChunk) => {
+    console.log('Stream started with usage:', chunk.usage);
+  };
+
+  const handleTokenChunk = (chunk: TokenChunk, accumulatedResponse: string): string => {
+    const newResponse = accumulatedResponse + chunk.token;
+    onAIResponse(newResponse);
+    return newResponse;
+  };
+
+  const handleCodeStartChunk = (chunk: CodeStartChunk) => {
+    console.log('Code block started:', chunk.language);
+    currentCodeBlockRef.current = ''; // Reset current code block
+    return chunk.language;
+  };
+
+  const handleCodeEndChunk = (currentLanguage: string) => {
+    console.log('Code block ended with content:', currentCodeBlockRef.current);
+    // Send the complete code block to the parent
+    if (currentCodeBlockRef.current) {
+      console.log('Sending code block to parent:', {
+        code: currentCodeBlockRef.current,
+        language: currentLanguage,
+      });
+      onCodeBlock(currentCodeBlockRef.current, currentLanguage);
+    }
+    currentCodeBlockRef.current = ''; // Reset current code block
+    return '';
+  };
+
+  const handleDoneChunk = (chunk: DoneChunk) => {
+    if (chunk.finish_reason !== 'stop') {
+      console.warn('Stream ended with reason:', chunk.finish_reason);
+    }
+    console.log('Stream completed with usage:', chunk.usage);
+  };
+
+  const handleErrorChunk = (chunk: ErrorChunk): boolean => {
+    console.error('Stream error:', chunk.error, 'Code:', chunk.code);
+    onAIResponse(`Error: ${chunk.error}`);
+    return true; // Signal to stop processing
+  };
+
+  const processChunk = async (
+    data: Chunk,
+    accumulatedResponse: string,
+    isInCodeBlock: boolean,
+    currentLanguage: string
+  ): Promise<[string, boolean, string, boolean]> => {
+    let shouldStop = false;
+
+    switch (data.type) {
+      case 'start':
+        handleStartChunk(data);
+        break;
+      case 'token':
+        if (isInCodeBlock) {
+          console.log('Adding token to code block:', data.token);
+          // Add newline if the token is a complete line
+          if (data.token.includes('\n')) {
+            currentCodeBlockRef.current += data.token;
+          } else {
+            currentCodeBlockRef.current += data.token + '\n';
+          }
+        }
+        accumulatedResponse = handleTokenChunk(data, accumulatedResponse);
+        break;
+      case 'code_start':
+        currentLanguage = handleCodeStartChunk(data);
+        isInCodeBlock = true;
+        break;
+      case 'code_end':
+        currentLanguage = handleCodeEndChunk(currentLanguage);
+        isInCodeBlock = false;
+        break;
+      case 'done':
+        handleDoneChunk(data);
+        break;
+      case 'error':
+        shouldStop = handleErrorChunk(data);
+        break;
+    }
+
+    return [accumulatedResponse, isInCodeBlock, currentLanguage, shouldStop];
+  };
 
   const handleSubmit = async () => {
     if (!message.trim() || isLoading) return;
@@ -77,6 +184,8 @@ export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
       const reader = stream.getReader();
       const decoder = new TextDecoder();
       let accumulatedResponse = '';
+      let isInCodeBlock = false;
+      let currentLanguage = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -86,32 +195,24 @@ export function ChatInput({ onUserMessage, onAIResponse }: ChatInputProps) {
         }
 
         const chunk = decoder.decode(value, { stream: true });
-        // Split by newlines in case multiple JSON objects are received
         const lines = chunk.split('\n').filter((line) => line.trim());
 
         for (const line of lines) {
           try {
-            const data = JSON.parse(line);
+            const data = JSON.parse(line) as Chunk;
+            const [newResponse, newIsInCodeBlock, newLanguage, shouldStop] = await processChunk(
+              data,
+              accumulatedResponse,
+              isInCodeBlock,
+              currentLanguage
+            );
 
-            if (data.type === 'start') {
-              const startChunk = data as StartChunk;
-              // Could use startChunk.usage for initial token count if needed
-              console.log('Stream started with usage:', startChunk.usage);
-            } else if (data.type === 'token') {
-              const tokenChunk = data as TokenChunk;
-              accumulatedResponse += tokenChunk.token;
-              onAIResponse(accumulatedResponse);
-            } else if (data.type === 'done') {
-              const doneChunk = data as DoneChunk;
-              if (doneChunk.finish_reason !== 'stop') {
-                console.warn('Stream ended with reason:', doneChunk.finish_reason);
-              }
-              console.log('Stream completed with usage:', doneChunk.usage);
-            } else if (data.type === 'error') {
-              const errorChunk = data as ErrorChunk;
-              console.error('Stream error:', errorChunk.error, 'Code:', errorChunk.code);
-              onAIResponse(`Error: ${errorChunk.error}`);
-              break; // Stop processing on error
+            accumulatedResponse = newResponse;
+            isInCodeBlock = newIsInCodeBlock;
+            currentLanguage = newLanguage;
+
+            if (shouldStop) {
+              return;
             }
           } catch (e) {
             console.error('Error parsing chunk:', e);
