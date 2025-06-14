@@ -1,5 +1,13 @@
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
+export enum Language {
+  PYTHON = 'python-3.12',
+  TYPESCRIPT = 'typescript',
+  JAVASCRIPT = 'javascript',
+  JAVA = 'java',
+  CSHARP = 'csharp',
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -7,7 +15,7 @@ export interface Message {
 
 export interface ChatRequest {
   messages: Message[];
-  language?: string;
+  language?: Language;
 }
 
 export const sendChatRequest = async (
@@ -30,4 +38,35 @@ export const sendChatRequest = async (
   }
 
   return response.body;
+};
+
+export interface CodeExecutionRequest {
+  language: Language;
+  implementation_code: string;
+  test_code: string;
+}
+
+export interface CodeExecutionResponse {
+  stdout: string;
+  stderr: string;
+  exit_code: number;
+  error?: string;
+}
+
+export const executeCode = async (
+  request: CodeExecutionRequest
+): Promise<CodeExecutionResponse> => {
+  const response = await fetch(`${API_BASE_URL}/code`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
 };

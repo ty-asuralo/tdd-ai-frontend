@@ -4,22 +4,14 @@ import { ConversationPanel } from './components/ConversationPanel';
 import { CodeEditor } from './components/CodeEditor';
 import { Sidebar } from './components/Sidebar';
 import { OutputPanel } from './components/OutputPanel';
-import { type Message } from './lib/api';
-
-type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'csharp';
-type Version = 'v1' | 'v2' | 'v3';
+import { type Message, executeCode, Language } from './lib/api';
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [code, setCode] = useState('// Write your code here\n');
+  const [test_code, setTestCode] = useState('');
   const [output, setOutput] = useState('');
-  const [language, setLanguage] = useState<Language>('typescript');
-  const [version, setVersion] = useState<Version>('v1');
-  const [generatedCode, setGeneratedCode] = useState<{ [key in Version]: string }>({
-    v1: '',
-    v2: '',
-    v3: '',
-  });
+  const [language, setLanguage] = useState<Language>(Language.PYTHON);
+  const [implementation_code, setImplementationCode] = useState('');
 
   const handleUserMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -38,30 +30,50 @@ function App() {
   };
 
   const handleCodeBlock = (code: string, codeLanguage: string) => {
-    console.log('App received code block:', { code, language: codeLanguage, version });
-    // Update the current version's generated code
-    setGeneratedCode((prev) => {
-      const newState = {
-        ...prev,
-        [version]: code,
-      };
-      console.log('Updated generated code state:', newState);
-      return newState;
-    });
+    console.log('App received code block:', { code, language: codeLanguage });
+    // Update implementation code
+    setImplementationCode(code);
+    console.log('Updated implementation code:', code);
 
     // Update the code editor's language if it matches our supported languages
-    if (codeLanguage in ['typescript', 'javascript', 'python', 'java', 'csharp']) {
-      setLanguage(codeLanguage as Language);
+    const supportedLanguages = {
+      typescript: Language.TYPESCRIPT,
+      javascript: Language.JAVASCRIPT,
+      'python-3.12': Language.PYTHON,
+      java: Language.JAVA,
+      csharp: Language.CSHARP,
+    };
+
+    if (codeLanguage in supportedLanguages) {
+      setLanguage(supportedLanguages[codeLanguage as keyof typeof supportedLanguages]);
     }
   };
 
-  const handleRunTests = () => {
-    // TODO: Implement test running logic
-    setOutput('Running tests...\n\n' + new Date().toLocaleTimeString());
+  const handleRunTests = async () => {
+    try {
+      setOutput('Running tests...\n');
+      const request = {
+        language,
+        implementation_code,
+        test_code,
+      };
+      console.log('Sending request to /code:', request);
+      const result = await executeCode(request);
+
+      if (result.exit_code === 0) {
+        // Success case - show stdout
+        setOutput(result.stdout || 'Tests passed successfully!');
+      } else {
+        // Error case - show stderr or error message
+        const errorMessage = result.stderr || result.error || 'Tests failed';
+        setOutput(`Error: ${errorMessage}`);
+      }
+    } catch (error) {
+      setOutput(`Error running tests: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const handleClearCode = () => {
-    setCode('// Write your code here\n');
     setOutput('');
   };
 
@@ -69,22 +81,13 @@ function App() {
     setLanguage(newLanguage);
     // Reset code with language-specific comment
     const comments = {
-      typescript: '// Write your TypeScript code here\n',
-      javascript: '// Write your JavaScript code here\n',
-      python: '# Write your Python code here\n',
-      java: '// Write your Java code here\n',
-      csharp: '// Write your C# code here\n',
+      [Language.PYTHON]: '# Write your Python code here\n',
+      [Language.TYPESCRIPT]: '// Write your TypeScript code here\n',
+      [Language.JAVASCRIPT]: '// Write your JavaScript code here\n',
+      [Language.JAVA]: '// Write your Java code here\n',
+      [Language.CSHARP]: '// Write your C# code here\n',
     };
-    setCode(comments[newLanguage]);
-  };
-
-  const handleVersionChange = (newVersion: Version) => {
-    console.log('Version changed to:', newVersion);
-    setVersion(newVersion);
-    // Update the code editor with the selected version's code
-    const versionCode = generatedCode[newVersion] || '';
-    console.log('Loading code for version:', { version: newVersion, code: versionCode });
-    setCode(versionCode);
+    setTestCode(comments[newLanguage]);
   };
 
   return (
@@ -108,19 +111,18 @@ function App() {
                 <div className="flex-1 overflow-hidden">
                   <ConversationPanel
                     messages={messages}
-                    version={version}
-                    onVersionChange={handleVersionChange}
                     language={language}
                     onSendMessage={(content) => handleUserMessage({ role: 'user', content })}
-                    generatedCode={generatedCode[version]}
+                    generatedCode={implementation_code}
+                    onGeneratedCodeChange={setImplementationCode}
                   />
                 </div>
               </div>
               <div className="flex h-full flex-col">
                 <div className="h-2/3">
                   <CodeEditor
-                    code={code}
-                    onChange={(value) => setCode(value || '')}
+                    code={test_code}
+                    onChange={(value) => setTestCode(value || '')}
                     onRunTests={handleRunTests}
                     onClear={handleClearCode}
                     language={language}

@@ -1,6 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'csharp';
+import { Language } from '../lib/api';
 
 interface SidebarProps {
   language: Language;
@@ -20,11 +19,11 @@ export function Sidebar({ language, onLanguageChange }: SidebarProps) {
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="typescript">TypeScript</SelectItem>
-                <SelectItem value="javascript">JavaScript</SelectItem>
-                <SelectItem value="python">Python</SelectItem>
-                <SelectItem value="java">Java</SelectItem>
-                <SelectItem value="csharp">C#</SelectItem>
+                <SelectItem value={Language.TYPESCRIPT}>TypeScript</SelectItem>
+                <SelectItem value={Language.JAVASCRIPT}>JavaScript</SelectItem>
+                <SelectItem value={Language.PYTHON}>Python-3.12</SelectItem>
+                <SelectItem value={Language.JAVA}>Java</SelectItem>
+                <SelectItem value={Language.CSHARP}>C#</SelectItem>
               </SelectContent>
             </Select>
           </div>
