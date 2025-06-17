@@ -6,6 +6,7 @@ import { type Message, Language } from '../lib/api';
 interface ConversationPanelProps {
   messages: Message[];
   language: Language;
+  onSendMessage: (content: string) => void;
   generatedCode: string;
   onGeneratedCodeChange?: (code: string) => void;
 }

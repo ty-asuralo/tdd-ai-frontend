@@ -137,12 +137,7 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
       case 'token':
         if (isInCodeBlock) {
           console.log('Adding token to code block:', data.token);
-          // Add newline if the token is a complete line
-          if (data.token.includes('\n')) {
-            currentCodeBlockRef.current += data.token;
-          } else {
-            currentCodeBlockRef.current += data.token + '\n';
-          }
+          currentCodeBlockRef.current += data.token;
         }
         accumulatedResponse = handleTokenChunk(data, accumulatedResponse);
         break;
@@ -177,11 +172,23 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
     onUserMessage(userMessageObj);
 
     try {
-      const stream = await sendChatRequest({
-        messages: [userMessageObj],
+      const response = await fetch('http://localhost:8000/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: [userMessageObj] }),
       });
 
-      const reader = stream.getReader();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
       const decoder = new TextDecoder();
       let accumulatedResponse = '';
       let isInCodeBlock = false;
@@ -189,17 +196,17 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
 
       while (true) {
         const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
+        if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter((line) => line.trim());
+        const lines = chunk.split('\n\n').filter((line) => line.trim());
 
         for (const line of lines) {
+          const match = line.match(/^data: (.+)$/);
+          if (!match) continue;
+
           try {
-            const data = JSON.parse(line) as Chunk;
+            const data = JSON.parse(match[1]) as Chunk;
             const [newResponse, newIsInCodeBlock, newLanguage, shouldStop] = await processChunk(
               data,
               accumulatedResponse,
@@ -215,7 +222,7 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
               return;
             }
           } catch (e) {
-            console.error('Error parsing chunk:', e);
+            console.error('Error parsing chunk:', e, 'Line:', line);
           }
         }
       }
