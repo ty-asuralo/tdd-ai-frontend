@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChatInput } from './components/ChatInput';
 import { ConversationPanel } from './components/ConversationPanel';
-import { CodeEditor } from './components/CodeEditor';
+import { CodeTabsPanel } from './components/CodeTabsPanel';
 import { Sidebar } from './components/Sidebar';
 import { OutputPanel } from './components/OutputPanel';
 import { type Message, executeCode, Language } from './lib/api';
@@ -9,9 +9,9 @@ import { type Message, executeCode, Language } from './lib/api';
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [test_code, setTestCode] = useState('');
-  const [output, setOutput] = useState('');
-  const [language, setLanguage] = useState<Language>(Language.PYTHON);
   const [implementation_code, setImplementationCode] = useState('');
+  const [output, setOutput] = useState('');
+  const [language, setLanguage] = useState(Language.PYTHON);
 
   const handleUserMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -90,6 +90,11 @@ function App() {
     setTestCode(comments[newLanguage]);
   };
 
+  // Wrappers to handle undefined
+  const handleGeneratedCodeChange = (value: string | undefined) =>
+    setImplementationCode(value || '');
+  const handleTestCodeChange = (value: string | undefined) => setTestCode(value || '');
+
   return (
     <div className="bg-background min-h-screen">
       <div className="flex h-screen">
@@ -100,32 +105,30 @@ function App() {
               <h1 className="text-2xl font-bold">TDD AI</h1>
             </div>
             <div className="grid h-[calc(100vh-120px)] grid-cols-2 gap-4">
+              {/* Left column: Conversation */}
               <div className="flex h-full flex-col">
-                <div className="mb-4">
+                <div className="flex-1 overflow-hidden">
+                  <ConversationPanel messages={messages} />
+                </div>
+                <div className="mt-4">
                   <ChatInput
                     onUserMessage={handleUserMessage}
                     onAIResponse={handleAIResponse}
                     onCodeBlock={handleCodeBlock}
                   />
                 </div>
-                <div className="flex-1 overflow-hidden">
-                  <ConversationPanel
-                    messages={messages}
-                    language={language}
-                    onSendMessage={(content) => handleUserMessage({ role: 'user', content })}
-                    generatedCode={implementation_code}
-                    onGeneratedCodeChange={setImplementationCode}
-                  />
-                </div>
               </div>
+              {/* Right column: Code editors and output */}
               <div className="flex h-full flex-col">
-                <div className="h-2/3">
-                  <CodeEditor
-                    code={test_code}
-                    onChange={(value) => setTestCode(value || '')}
+                <div className="flex-1">
+                  <CodeTabsPanel
+                    generatedCode={implementation_code}
+                    onGeneratedCodeChange={handleGeneratedCodeChange}
+                    testCode={test_code}
+                    onTestCodeChange={handleTestCodeChange}
+                    language={language}
                     onRunTests={handleRunTests}
                     onClear={handleClearCode}
-                    language={language}
                   />
                 </div>
                 <div className="mt-4 h-1/3">
