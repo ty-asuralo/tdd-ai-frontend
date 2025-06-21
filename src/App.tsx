@@ -12,6 +12,7 @@ function App() {
   const [implementation_code, setImplementationCode] = useState('');
   const [output, setOutput] = useState('');
   const [language, setLanguage] = useState(Language.PYTHON);
+  const [activeTab, setActiveTab] = useState('test');
 
   const handleUserMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -54,6 +55,7 @@ function App() {
       const separator = prevCode.trim() ? '\n\n' : '';
       return prevCode + separator + code;
     });
+    setActiveTab('generated'); // Switch to generated code tab
     console.log('Appended code to editor:', { code, language });
   };
 
@@ -140,6 +142,8 @@ function App() {
                     language={language}
                     onRunTests={handleRunTests}
                     onClear={handleClearCode}
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
                   />
                 </div>
                 <div className="mt-4 h-1/3">

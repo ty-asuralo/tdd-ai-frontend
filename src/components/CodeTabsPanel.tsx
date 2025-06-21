@@ -11,6 +11,8 @@ interface CodeTabsPanelProps {
   language: string;
   onRunTests: () => void;
   onClear: () => void;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 // Function to extract base language for Monaco Editor
@@ -37,10 +39,23 @@ export function CodeTabsPanel({
   language,
   onRunTests,
   onClear,
+  activeTab: externalActiveTab,
+  onTabChange,
 }: CodeTabsPanelProps) {
   const baseLanguage = getBaseLanguage(language);
-  const [activeTab, setActiveTab] = useState('generated');
+  const [internalActiveTab, setInternalActiveTab] = useState('test');
   const [showClearModal, setShowClearModal] = useState(false);
+
+  // Use external activeTab if provided, otherwise use internal state
+  const activeTab = externalActiveTab || internalActiveTab;
+
+  const handleTabChange = (tab: string) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalActiveTab(tab);
+    }
+  };
 
   const handleClear = () => {
     if (activeTab === 'generated') {
@@ -60,14 +75,14 @@ export function CodeTabsPanel({
   return (
     <>
       <Tabs 
-        defaultValue="generated" 
+        value={activeTab}
         className="flex h-full flex-col"
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
       >
         <div className="flex items-center justify-between">
           <TabsList>
-            <TabsTrigger value="generated">Generated Code</TabsTrigger>
             <TabsTrigger value="test">Code Test Editor</TabsTrigger>
+            <TabsTrigger value="generated">Generated Code</TabsTrigger>
           </TabsList>
           <div className="ml-4 flex gap-2">
             <Button 
@@ -80,10 +95,10 @@ export function CodeTabsPanel({
             <Button onClick={onRunTests}>Run Tests</Button>
           </div>
         </div>
-        <TabsContent value="generated" className="flex-1">
+        <TabsContent value="test" className="flex-1">
           <Editor
-            value={generatedCode}
-            onChange={onGeneratedCodeChange}
+            value={testCode}
+            onChange={onTestCodeChange}
             language={baseLanguage}
             height="100%"
             theme="vs-dark"
@@ -110,10 +125,10 @@ export function CodeTabsPanel({
             }}
           />
         </TabsContent>
-        <TabsContent value="test" className="flex-1">
+        <TabsContent value="generated" className="flex-1">
           <Editor
-            value={testCode}
-            onChange={onTestCodeChange}
+            value={generatedCode}
+            onChange={onGeneratedCodeChange}
             language={baseLanguage}
             height="100%"
             theme="vs-dark"
