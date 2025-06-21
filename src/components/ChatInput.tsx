@@ -8,63 +8,39 @@ interface ChatInputProps {
   onCodeBlock: (code: string, language: string) => void;
 }
 
-interface StartChunk {
-  type: 'start';
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+interface TokenUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
 }
 
-interface TokenChunk {
-  type: 'token';
-  token: string;
-  role: 'assistant';
-  index: number;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
+type ContentChunk = {
+  type: "token" | "code_start" | "code_end";
+  token?: string;
+  index?: number;
+  usage?: TokenUsage;
+  role?: "assistant";
+  language?: string;
+};
 
-interface CodeStartChunk {
-  type: 'code_start';
-  language: string;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
+type StartChunk = {
+  type: "start";
+  usage?: TokenUsage;
+};
 
-interface CodeEndChunk {
-  type: 'code_end';
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
-interface ErrorChunk {
-  type: 'error';
+type ErrorChunk = {
+  type: "error";
   error: string;
   code: string;
-}
+};
 
-interface DoneChunk {
-  type: 'done';
-  finish_reason: 'stop' | 'length' | 'function_call' | 'user_abort';
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
+type DoneChunk = {
+  type: "done";
+  finish_reason: "stop" | "length" | "function_call" | "user_abort";
+  usage?: TokenUsage;
+};
 
-type Chunk = StartChunk | TokenChunk | CodeStartChunk | CodeEndChunk | ErrorChunk | DoneChunk;
+type Chunk = ContentChunk | StartChunk | ErrorChunk | DoneChunk;
 
 export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInputProps) {
   const [message, setMessage] = useState('');
@@ -83,30 +59,33 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
     console.log('Stream started with usage:', chunk.usage);
   };
 
-  const handleTokenChunk = (chunk: TokenChunk, accumulatedResponse: string): string => {
+  const handleTokenChunk = (chunk: ContentChunk, accumulatedResponse: string): string => {
     const newResponse = accumulatedResponse + chunk.token;
     onAIResponse(newResponse);
     return newResponse;
   };
 
-  const handleCodeStartChunk = (chunk: CodeStartChunk) => {
+  const handleCodeStartChunk = (chunk: ContentChunk, accumulatedResponse: string): string => {
     console.log('Code block started:', chunk.language);
     currentCodeBlockRef.current = ''; // Reset current code block
-    return chunk.language;
+    const newResponse = accumulatedResponse + chunk.token;
+    onAIResponse(newResponse);
+    return newResponse;
   };
 
-  const handleCodeEndChunk = (currentLanguage: string) => {
+  const handleCodeEndChunk = (chunk: ContentChunk, currentLanguage: string, accumulatedResponse: string) => {
     console.log('Code block ended with content:', currentCodeBlockRef.current);
     // Send the complete code block to the parent
     if (currentCodeBlockRef.current) {
       console.log('Sending code block to parent:', {
         code: currentCodeBlockRef.current,
-        language: currentLanguage,
       });
       onCodeBlock(currentCodeBlockRef.current, currentLanguage);
     }
+    const newResponse = accumulatedResponse + chunk.token;
+    onAIResponse(newResponse);
     currentCodeBlockRef.current = ''; // Reset current code block
-    return '';
+    return newResponse;
   };
 
   const handleDoneChunk = (chunk: DoneChunk) => {
@@ -142,11 +121,11 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
         accumulatedResponse = handleTokenChunk(data, accumulatedResponse);
         break;
       case 'code_start':
-        currentLanguage = handleCodeStartChunk(data);
+        accumulatedResponse = handleCodeStartChunk(data, accumulatedResponse);
         isInCodeBlock = true;
         break;
       case 'code_end':
-        currentLanguage = handleCodeEndChunk(currentLanguage);
+        accumulatedResponse = handleCodeEndChunk(data, currentLanguage, accumulatedResponse);
         isInCodeBlock = false;
         break;
       case 'done':
@@ -226,6 +205,7 @@ export function ChatInput({ onUserMessage, onAIResponse, onCodeBlock }: ChatInpu
           }
         }
       }
+      console.log(accumulatedResponse)
     } catch (error) {
       console.error('Error sending message:', error);
       onAIResponse('Sorry, there was an error processing your request. Please try again.');

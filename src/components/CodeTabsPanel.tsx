@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Editor } from '@monaco-editor/react';
 import { Button } from './ui/button';
+import { useState } from 'react';
 
 interface CodeTabsPanelProps {
   generatedCode: string;
@@ -12,6 +13,22 @@ interface CodeTabsPanelProps {
   onClear: () => void;
 }
 
+// Function to extract base language for Monaco Editor
+const getBaseLanguage = (language: string): string => {
+  // Extract base language from versioned language strings
+  const languageMap: Record<string, string> = {
+    'python-3.12': 'python',
+    'python-3.11': 'python',
+    'python-3.10': 'python',
+    'typescript': 'typescript',
+    'javascript': 'javascript',
+    'java': 'java',
+    'csharp': 'csharp',
+  };
+  
+  return languageMap[language] || language.split('-')[0];
+};
+
 export function CodeTabsPanel({
   generatedCode,
   onGeneratedCodeChange,
@@ -21,54 +38,137 @@ export function CodeTabsPanel({
   onRunTests,
   onClear,
 }: CodeTabsPanelProps) {
+  const baseLanguage = getBaseLanguage(language);
+  const [activeTab, setActiveTab] = useState('generated');
+  const [showClearModal, setShowClearModal] = useState(false);
+
+  const handleClear = () => {
+    if (activeTab === 'generated') {
+      onGeneratedCodeChange('');
+    } else if (activeTab === 'test') {
+      onTestCodeChange('');
+    }
+    setShowClearModal(false);
+  };
+
+  const openClearModal = () => {
+    setShowClearModal(true);
+  };
+
+  const hasContent = activeTab === 'generated' ? generatedCode.trim() !== '' : testCode.trim() !== '';
+
   return (
-    <Tabs defaultValue="generated" className="flex h-full flex-col">
-      <div className="flex items-center justify-between">
-        <TabsList>
-          <TabsTrigger value="generated">Generated Code</TabsTrigger>
-          <TabsTrigger value="test">Code Test Editor</TabsTrigger>
-        </TabsList>
-        <div className="ml-4 flex gap-2">
-          <Button variant="outline" onClick={onClear}>
-            Clear
-          </Button>
-          <Button onClick={onRunTests}>Run Tests</Button>
+    <>
+      <Tabs 
+        defaultValue="generated" 
+        className="flex h-full flex-col"
+        onValueChange={setActiveTab}
+      >
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="generated">Generated Code</TabsTrigger>
+            <TabsTrigger value="test">Code Test Editor</TabsTrigger>
+          </TabsList>
+          <div className="ml-4 flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={openClearModal}
+              disabled={!hasContent}
+            >
+              Clear {activeTab === 'generated' ? 'Generated' : 'Test'}
+            </Button>
+            <Button onClick={onRunTests}>Run Tests</Button>
+          </div>
         </div>
-      </div>
-      <TabsContent value="generated" className="flex-1">
-        <Editor
-          value={generatedCode}
-          onChange={onGeneratedCodeChange}
-          language={language}
-          height="100%"
-          theme="vs-dark"
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            lineNumbers: 'on',
-            roundedSelection: false,
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-          }}
-        />
-      </TabsContent>
-      <TabsContent value="test" className="flex-1">
-        <Editor
-          value={testCode}
-          onChange={onTestCodeChange}
-          language={language}
-          height="100%"
-          theme="vs-dark"
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            lineNumbers: 'on',
-            roundedSelection: false,
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-          }}
-        />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="generated" className="flex-1">
+          <Editor
+            value={generatedCode}
+            onChange={onGeneratedCodeChange}
+            language={baseLanguage}
+            height="100%"
+            theme="vs-dark"
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              lineNumbers: 'on',
+              roundedSelection: false,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: 'on',
+              folding: true,
+              foldingStrategy: 'indentation',
+              showFoldingControls: 'always',
+              renderWhitespace: 'selection',
+              renderControlCharacters: false,
+              renderLineHighlight: 'all',
+              selectOnLineNumbers: true,
+              glyphMargin: true,
+              useTabStops: false,
+              tabSize: 2,
+              insertSpaces: true,
+              detectIndentation: true,
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="test" className="flex-1">
+          <Editor
+            value={testCode}
+            onChange={onTestCodeChange}
+            language={baseLanguage}
+            height="100%"
+            theme="vs-dark"
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              lineNumbers: 'on',
+              roundedSelection: false,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: 'on',
+              folding: true,
+              foldingStrategy: 'indentation',
+              showFoldingControls: 'always',
+              renderWhitespace: 'selection',
+              renderControlCharacters: false,
+              renderLineHighlight: 'all',
+              selectOnLineNumbers: true,
+              glyphMargin: true,
+              useTabStops: false,
+              tabSize: 2,
+              insertSpaces: true,
+              detectIndentation: true,
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Clear Confirmation Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              Clear {activeTab === 'generated' ? 'Generated Code' : 'Test Code'}?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to clear the {activeTab === 'generated' ? 'generated code' : 'test code'}? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowClearModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleClear}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -49,6 +49,14 @@ function App() {
     }
   };
 
+  const handleSendToEditor = (code: string, language: string) => {
+    setImplementationCode(prevCode => {
+      const separator = prevCode.trim() ? '\n\n' : '';
+      return prevCode + separator + code;
+    });
+    console.log('Appended code to editor:', { code, language });
+  };
+
   const handleRunTests = async () => {
     try {
       setOutput('Running tests...\n');
@@ -99,16 +107,19 @@ function App() {
     <div className="bg-background min-h-screen">
       <div className="flex h-screen">
         <Sidebar language={language} onLanguageChange={handleLanguageChange} />
-        <div className="flex-1 p-4">
-          <div className="mx-auto max-w-7xl">
+        <div className="flex-1 p-4 pl-16">
+          <div className="h-full">
             <div className="mb-4">
               <h1 className="text-2xl font-bold">TDD AI</h1>
             </div>
-            <div className="grid h-[calc(100vh-120px)] grid-cols-2 gap-4">
+            <div className="grid h-[calc(100vh-120px)] grid-cols-2 gap-6">
               {/* Left column: Conversation */}
               <div className="flex h-full flex-col">
                 <div className="flex-1 overflow-hidden">
-                  <ConversationPanel messages={messages} />
+                  <ConversationPanel 
+                    messages={messages} 
+                    onSendToEditor={handleSendToEditor}
+                  />
                 </div>
                 <div className="mt-4">
                   <ChatInput
