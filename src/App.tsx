@@ -51,7 +51,7 @@ function App() {
   };
 
   const handleSendToEditor = (code: string, language: string) => {
-    setImplementationCode(prevCode => {
+    setImplementationCode((prevCode) => {
       const separator = prevCode.trim() ? '\n\n' : '';
       return prevCode + separator + code;
     });
@@ -107,33 +107,17 @@ function App() {
 
   return (
     <div className="bg-background min-h-screen">
-      <div className="flex h-screen">
+      <div className="flex h-screen min-h-0">
         <Sidebar language={language} onLanguageChange={handleLanguageChange} />
-        <div className="flex-1 p-4 pl-16">
-          <div className="h-full">
+        <div className="min-h-0 flex-1 p-4 pl-16">
+          <div className="h-full min-h-0">
             <div className="mb-4">
               <h1 className="text-2xl font-bold">TDD AI</h1>
             </div>
-            <div className="grid h-[calc(100vh-120px)] grid-cols-2 gap-6">
-              {/* Left column: Conversation */}
-              <div className="flex h-full flex-col">
-                <div className="flex-1 overflow-hidden">
-                  <ConversationPanel 
-                    messages={messages} 
-                    onSendToEditor={handleSendToEditor}
-                  />
-                </div>
-                <div className="mt-4">
-                  <ChatInput
-                    onUserMessage={handleUserMessage}
-                    onAIResponse={handleAIResponse}
-                    onCodeBlock={handleCodeBlock}
-                  />
-                </div>
-              </div>
-              {/* Right column: Code editors and output */}
-              <div className="flex h-full flex-col">
-                <div className="flex-1">
+            <div className="grid h-[calc(100vh-120px)] min-h-0 grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Left column: Code editors tabs, fill height */}
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="min-h-0 flex-1">
                   <CodeTabsPanel
                     generatedCode={implementation_code}
                     onGeneratedCodeChange={handleGeneratedCodeChange}
@@ -146,8 +130,23 @@ function App() {
                     onTabChange={setActiveTab}
                   />
                 </div>
-                <div className="mt-4 h-1/3">
+              </div>
+              {/* Right column: OutputPanel (top), ConversationPanel+ChatInput (bottom) */}
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="mt-0 max-h-[60vh] min-h-[180px] overflow-auto">
                   <OutputPanel output={output} />
+                </div>
+                <div className="mt-4 flex min-h-0 flex-1 flex-col">
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <ConversationPanel messages={messages} onSendToEditor={handleSendToEditor} />
+                  </div>
+                  <div className="bg-background sticky bottom-0 z-10">
+                    <ChatInput
+                      onUserMessage={handleUserMessage}
+                      onAIResponse={handleAIResponse}
+                      onCodeBlock={handleCodeBlock}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
